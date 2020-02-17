@@ -75,7 +75,7 @@ create table #result (
     ,obj_schema nvarchar(128)
     ,obj_name nvarchar(128)
     ,script_part nvarchar(256)
-    ,script_seq int not null
+    ,script_ord int not null
     ,script nvarchar(max) not null
 )
 
@@ -91,39 +91,82 @@ if @object_type in ('alerts', 'jobs', 'operators') begin
         obj_id int
         ,obj_name nvarchar(512)
         ,script_part nvarchar(128)
+        ,script_ord bigint
+        ,script_ord2 bigint
         ,script nvarchar(max)
     )
 
     -- populate sql_parts for alerts
     if @object_type = 'alerts' begin
-        -- SQL that appears once per alert schedule
         ;with alerts as (
             select xsa.*
                  , xsc.name as category_name
             from msdb.dbo.sysalerts xsa
-            join msdb.dbo.syscategories xsc
+            left join msdb.dbo.syscategories xsc
               on xsa.category_id = xsc.category_id
            where xsa.name = isnull(@object_name, xsa.name)
         )
-        insert into #sql_parts
-        select t.id
-             , t.name
+        insert into #sql_parts (obj_id, obj_name, script_part, script)
+        select a.id
+             , a.name
              , N'sp_add_alert' as script_part
-             , N'/****** Object:  Alert [' + replace(t.name, @APOS, @APOS + @APOS) + N']' + case when @include_scriptdate = 1 then N'    Script Date: ' + @strnow else '' end + N' ******/' + @NL +
-               N'EXEC msdb.dbo.sp_add_alert @name=N''' + replace(t.name, @APOS, @APOS + @APOS) + @APOS +
-               case when t.message_id                is null then '' else N',' + @NL + @indent2 + '@message_id='                   + cast(t.message_id as nvarchar) end +
-               case when t.severity                  is null then '' else N',' + @NL + @indent2 + '@severity='                     + cast(t.severity as nvarchar) end +
-               case when t.enabled                   is null then '' else N',' + @NL + @indent2 + '@enabled='                      + cast(t.enabled as nvarchar) end +
-               case when t.delay_between_responses   is null then '' else N',' + @NL + @indent2 + '@delay_between_responses='      + cast(t.delay_between_responses as nvarchar) end +
-               case when t.include_event_description is null then '' else N',' + @NL + @indent2 + '@include_event_description_in=' + cast(t.include_event_description as nvarchar) end +
-               case when t.category_name             is null then '' else N',' + @NL + @indent2 + '@category_name=N'''             + cast(t.category_name as nvarchar(40)) + @APOS end +
-               case when t.job_id                    is null then '' else N',' + @NL + @indent2 + '@job_id=N'''                    + lower(cast(t.job_id as nvarchar(40))) + @APOS end +
+             , N'/****** Object:  Alert [' + replace(a.name, @APOS, @APOS + @APOS) + N']' + case when @include_scriptdate = 1 then N'    Script Date: ' + @strnow else '' end + N' ******/' + @NL +
+               N'EXEC msdb.dbo.sp_add_alert @name=N''' + replace(a.name, @APOS, @APOS + @APOS) + @APOS +
+               case when a.message_id                is null then '' else N',' + @NL + @indent2 + '@message_id='                   + cast(a.message_id as nvarchar) end +
+               case when a.severity                  is null then '' else N',' + @NL + @indent2 + '@severity='                     + cast(a.severity as nvarchar) end +
+               case when a.enabled                   is null then '' else N',' + @NL + @indent2 + '@enabled='                      + cast(a.enabled as nvarchar) end +
+               case when a.delay_between_responses   is null then '' else N',' + @NL + @indent2 + '@delay_between_responses='      + cast(a.delay_between_responses as nvarchar) end +
+               case when a.include_event_description is null then '' else N',' + @NL + @indent2 + '@include_event_description_in=' + cast(a.include_event_description as nvarchar) end +
+               case when a.category_name             is null then '' else N',' + @NL + @indent2 + '@category_name=N'''             + a.category_name + @APOS end +
+               case when a.job_id                    is null then '' else N',' + @NL + @indent2 + '@job_id=N'''                    + lower(cast(a.job_id as nvarchar(128))) + @APOS end +
                @NL + N'GO' + @NL as script
-        from alerts t
+        from alerts as a
+    end
+
+    -- populate sql_parts for jobs
+    else if @object_type = 'jobs' begin
+
+        print 'todo'
+
+
+
+
+    end
+
+    -- populate sql_parts for operators
+    else if @object_type = 'operators' begin
+        ;with operators as (
+            select xso.*
+                 , xsc.name as category_name
+              from msdb.dbo.sysoperators xso
+              left join msdb.dbo.syscategories xsc
+                on xso.category_id = xsc.category_id
+             where xso.name = isnull(@object_name, xso.name)
+        )
+        insert into #sql_parts (obj_id, obj_name, script_part, script)
+        select o.id
+             , o.name
+             , N'sp_add_operator' as script_part
+             , N'/****** Object:  Operator [' + replace(o.name, @APOS, @APOS + @APOS) + N']' + case when @include_scriptdate = 1 then N'    Script Date: ' + @strnow else '' end + N' ******/' + @NL +
+               N'EXEC msdb.dbo.sp_add_operator @name=N''' + replace(o.name, @APOS, @APOS + @APOS) + @APOS +
+               case when o.enabled                   is null then '' else N',' + @NL + @indent2 + '@enabled='                   + cast(o.enabled as nvarchar) end +
+               case when o.weekday_pager_start_time  is null then '' else N',' + @NL + @indent2 + '@weekday_pager_start_time='  + cast(o.weekday_pager_start_time as nvarchar) end +
+               case when o.weekday_pager_end_time    is null then '' else N',' + @NL + @indent2 + '@weekday_pager_end_time='    + cast(o.weekday_pager_end_time as nvarchar) end +
+               case when o.saturday_pager_start_time is null then '' else N',' + @NL + @indent2 + '@saturday_pager_start_time=' + cast(o.saturday_pager_start_time as nvarchar) end +
+               case when o.saturday_pager_end_time   is null then '' else N',' + @NL + @indent2 + '@saturday_pager_end_time='   + cast(o.saturday_pager_end_time as nvarchar) end +
+               case when o.sunday_pager_start_time   is null then '' else N',' + @NL + @indent2 + '@sunday_pager_start_time='   + cast(o.sunday_pager_start_time as nvarchar) end +
+               case when o.sunday_pager_end_time     is null then '' else N',' + @NL + @indent2 + '@sunday_pager_end_time='     + cast(o.sunday_pager_end_time as nvarchar) end +
+               case when o.pager_days                is null then '' else N',' + @NL + @indent2 + '@pager_days='                + cast(o.pager_days as nvarchar) end +
+               case when o.email_address             is null then '' else N',' + @NL + @indent2 + '@email_address=N'''          + o.email_address + @APOS end +
+               case when o.netsend_address           is null then '' else N',' + @NL + @indent2 + '@netsend_address=N'''        + o.netsend_address + @APOS end +
+               case when o.pager_address             is null then '' else N',' + @NL + @indent2 + '@pager_address=N'''          + o.pager_address + @APOS end +
+               case when o.category_name             is null then '' else N',' + @NL + @indent2 + '@category_name=N'''          + o.category_name + @APOS end +
+               @NL + N'GO' + @NL as script
+        from operators as o
     end
 
     -- assemble results
-    insert into #result (script_part, script_seq, script)
+    insert into #result (script_part, script_ord, script)
     select 'use statement'
          , n.num
          , case n.num
@@ -134,8 +177,8 @@ if @object_type in ('alerts', 'jobs', 'operators') begin
     from @numbers n
     where n.num < 3
 
-    -- Use XML trick to split on newlines
-    insert into #result (obj_id, obj_name, script_part, script_seq, script)
+    -- Use the XML split trick on newlines
+    insert into #result (obj_id, obj_name, script_part, script_ord, script)
     select s.obj_id
          , s.obj_name
          , s.script_part
@@ -146,6 +189,8 @@ if @object_type in ('alerts', 'jobs', 'operators') begin
         select x.obj_id
              , x.obj_name
              , x.script_part
+             , x.script_ord
+             , x.script_ord2
              ,  cast('<rows><row>' +
                      replace(replace(replace(x.script, '&', '&amp;'), '<', '&lt;'), @NL, '</row><row>') +
                      '</row></rows>' as xml) as x
@@ -153,31 +198,43 @@ if @object_type in ('alerts', 'jobs', 'operators') begin
     ) s
     cross apply s.x.nodes('/rows/row') as t(x)
     order by s.obj_name
-           , s.script_part
-           , seq
+           , s.script_ord
+           , s.script_ord2
 
     -- clean up
     if object_id('tempdb..#sql_parts') is not null drop table #sql_parts
+end
+
+else begin
+    -- uh, oh. sp_scripter was called with an object_type we don't know how to handle
+    declare @err nvarchar(max) = 'Scripting of specified object type not implemented: ' + isnull(@object_type, '<NULL>')
+    raiserror(@err, 16, 1)
+    return
 end
 
 -- #endregion alerts, jobs, operators
 --------------------------------------------------------------------------------
 -- #region results
 
--- return the results
+-- select the resulting dataset
 select t.row_id
      , isnull(t.obj_type, @object_type) as obj_type
      , t.obj_id
      , t.obj_schema
      , t.obj_name
      , t.script_part
-     , t.script_seq
+     , t.script_ord
      , t.script
 from #result t
 order by 1
+
+-- #endregion results
 
 end
 go
 
 -- test
 exec dbo.sp_scripter 'alerts'
+exec dbo.sp_scripter 'jobs'
+exec dbo.sp_scripter 'operators'
+-- exec dbo.sp_scripter 'nada'
