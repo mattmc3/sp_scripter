@@ -1,7 +1,7 @@
 Scripting Features:
     - script alerts @done(20-02-17 13:00)
-    - script jobs
-    - script operators
+    - script jobs @done(20-02-17 15:48)
+    - script operators @done(20-02-17 15:48)
     - script views
     - script udfs
     - script stored procs
@@ -10,3 +10,4 @@ Scripting Features:
     - script table update
     - script table delete
     - script database
+    - script drops
